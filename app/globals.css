@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply text-white;
+    background: radial-gradient(circle at center, #2a2a2a 0%, #000000 100%);
+    background-attachment: fixed;
+    position: relative;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.05;
+    z-index: 0;
+    background-image: 
+      repeating-linear-gradient(0deg, transparent, transparent 50px, rgba(255, 255, 255, 0.1) 50px, rgba(255, 255, 255, 0.1) 51px),
+      repeating-linear-gradient(90deg, transparent, transparent 50px, rgba(255, 255, 255, 0.1) 50px, rgba(255, 255, 255, 0.1) 51px);
+    pointer-events: none;
+  }
+
+  main {
+    position: relative;
+    z-index: 1;
+  }
+
+  header {
+    position: relative;
+    z-index: 10;
+  }
+}
+
+@layer utilities {
+  .card-shadow {
+    box-shadow: 
+      0 0 20px rgba(0, 210, 255, 0.3),
+      0 10px 30px rgba(0, 0, 0, 0.5);
+  }
+  
+  .premium-gradient {
+    background: linear-gradient(135deg, rgba(0, 210, 255, 0.1) 0%, rgba(0, 0, 0, 0.3) 100%);
+  }
+
+  .fifa-card-shape {
+    clip-path: polygon(8% 0%, 92% 0%, 100% 12%, 100% 85%, 50% 100%, 0% 85%, 0% 12%);
+  }
+
+  .card-texture {
+    background-image: 
+      repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 2px,
+        rgba(255, 255, 255, 0.03) 2px,
+        rgba(255, 255, 255, 0.03) 4px
+      ),
+      repeating-linear-gradient(
+        -45deg,
+        transparent,
+        transparent 2px,
+        rgba(255, 255, 255, 0.02) 2px,
+        rgba(255, 255, 255, 0.02) 4px
+      );
+  }
+
+  /* Responsive card scaling for small devices */
+  .fifa-card-scale-wrapper {
+    transform-origin: top center;
+    transition: transform 0.3s ease;
+  }
+
+  @media (max-width: 380px) {
+    .fifa-card-scale-wrapper {
+      transform: scale(0.85);
+    }
+  }
+
+  @media (max-width: 340px) {
+    .fifa-card-scale-wrapper {
+      transform: scale(0.75);
+    }
+  }
+}
+
