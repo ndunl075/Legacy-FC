@@ -34,3 +34,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# background removal resources (copied during build)
+/public/static/chunks/imgly
+

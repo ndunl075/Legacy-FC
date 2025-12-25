@@ -77,6 +77,7 @@ export default function ControlPanel({ playerData, setPlayerData }: ControlPanel
             const progressPercent = Math.round((current / total) * 100)
             setProcessingProgress(progressPercent)
           },
+          publicPath: '/static/chunks/imgly/',
         })
 
         // Convert blob to data URL
