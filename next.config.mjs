@@ -1,53 +1,58 @@
-import CopyPlugin from 'copy-webpack-plugin'
+import path from 'path'
 import { fileURLToPath } from 'url'
-import { dirname, join } from 'path'
+import CopyPlugin from 'copy-webpack-plugin'
 
 const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
+const __dirname = path.dirname(__filename)
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   webpack: (config, { isServer }) => {
-    // Handle WASM files
+    // Enable WASM support
     config.experiments = {
       ...config.experiments,
       asyncWebAssembly: true,
       layers: true,
     }
 
-    // Only run on client-side
+    // Client-side only configuration
     if (!isServer) {
+      // Copy @imgly/background-removal dist files to public directory
       config.plugins.push(
         new CopyPlugin({
           patterns: [
             {
-              from: join(__dirname, 'node_modules/@imgly/background-removal/dist'),
-              to: join(__dirname, 'public/static/chunks/imgly'),
+              from: path.join(__dirname, 'node_modules/@imgly/background-removal/dist'),
+              to: path.join(__dirname, 'public/static/chunks/imgly'),
             },
           ],
         })
       )
 
-      // Add rule to treat onnxruntime files as assets
-      config.module.rules.push({
-        test: /ort.*\.mjs$/,
-        type: 'asset/resource',
-        generator: {
-          filename: 'static/chunks/[name][ext]',
+      // CRITICAL: Prevent Webpack from parsing ONNX Runtime files
+      // This stops the import.meta syntax errors
+      config.module.rules.push(
+        {
+          test: /ort.*\.wasm$/,
+          type: 'asset/resource',
         },
-      })
+        {
+          test: /onnxruntime-web/,
+          type: 'javascript/auto',
+        }
+      )
 
-      // Prevent minimization of @imgly/background-removal
+      // Exclude @imgly/background-removal from Terser minification
       if (config.optimization.minimizer) {
         config.optimization.minimizer.forEach((plugin) => {
           if (plugin.constructor.name === 'TerserPlugin') {
-            plugin.options.exclude = /node_modules[\\/]@imgly[\\/]background-removal/
+            plugin.options.exclude = /node_modules[\\/](@imgly[\\/]background-removal|onnxruntime-web)/
           }
         })
       }
     }
 
-    // Handle module resolution
+    // Prevent Node.js modules from being bundled
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
@@ -58,12 +63,15 @@ const nextConfig = {
     return config
   },
 
-  // Prevent server-side bundling of background-removal
+  // Prevent server-side bundling of packages that use WASM/ONNX
   experimental: {
-    serverComponentsExternalPackages: ['@imgly/background-removal'],
+    serverComponentsExternalPackages: [
+      '@imgly/background-removal',
+      'onnxruntime-web',
+    ],
   },
 
-  // Set headers for WASM/ONNX file loading
+  // CORS headers required for SharedArrayBuffer and WASM
   async headers() {
     return [
       {
