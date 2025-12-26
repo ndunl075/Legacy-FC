@@ -17,7 +17,8 @@ const nextConfig = {
 
     // Client-side only configuration
     if (!isServer) {
-      // Copy @imgly/background-removal dist files to public directory
+      // CRITICAL: Copy @imgly/background-removal dist files to public directory
+      // This prevents Webpack from trying to bundle them
       config.plugins.push(
         new CopyPlugin({
           patterns: [
@@ -29,30 +30,34 @@ const nextConfig = {
         })
       )
 
-      // CRITICAL: Prevent Webpack from parsing ONNX Runtime files
-      // This stops the import.meta syntax errors
-      config.module.rules.push(
-        {
-          test: /ort.*\.wasm$/,
-          type: 'asset/resource',
-        },
-        {
-          test: /onnxruntime-web/,
-          type: 'javascript/auto',
-        }
-      )
+      // CRITICAL: Treat WASM files as assets (don't parse them)
+      // This prevents Terser from trying to minify them
+      config.module.rules.push({
+        test: /\.wasm$/,
+        type: 'asset/resource',
+      })
 
-      // Exclude @imgly/background-removal from Terser minification
-      if (config.optimization.minimizer) {
-        config.optimization.minimizer.forEach((plugin) => {
-          if (plugin.constructor.name === 'TerserPlugin') {
-            plugin.options.exclude = /node_modules[\\/](@imgly[\\/]background-removal|onnxruntime-web)/
+      // CRITICAL: Ignore ONNX Runtime .mjs files that contain import.meta
+      // Tell Webpack to treat them as external resources
+      config.module.rules.push({
+        test: /onnxruntime-web.*\.mjs$/,
+        type: 'asset/resource',
+        generator: {
+          filename: 'static/chunks/[name][ext]',
+        },
+      })
+
+      // Exclude the entire @imgly/background-removal package from Terser minification
+      if (config.optimization && config.optimization.minimizer) {
+        config.optimization.minimizer.forEach((minimizer) => {
+          if (minimizer.constructor.name === 'TerserPlugin') {
+            minimizer.options.exclude = /node_modules[\\/](@imgly[\\/]background-removal|onnxruntime-web)/
           }
         })
       }
     }
 
-    // Prevent Node.js modules from being bundled
+    // Prevent Node.js modules from being bundled client-side
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
@@ -63,7 +68,8 @@ const nextConfig = {
     return config
   },
 
-  // Prevent server-side bundling of packages that use WASM/ONNX
+  // CRITICAL: Prevent server-side bundling of packages that use WASM/ONNX
+  // This avoids import.meta errors during server-side rendering
   experimental: {
     serverComponentsExternalPackages: [
       '@imgly/background-removal',
