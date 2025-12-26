@@ -76,3 +76,5 @@ Legacy/
 
 Built with ❤️ for the Legacy community
 
+Last updated: 2025-12-25
+
