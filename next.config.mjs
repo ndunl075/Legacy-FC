@@ -7,7 +7,7 @@ const __dirname = path.dirname(__filename)
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  webpack: (config, { isServer, webpack }) => {
+  webpack: (config, { isServer }) => {
     // Enable WASM support
     config.experiments = {
       ...config.experiments,
@@ -17,7 +17,7 @@ const nextConfig = {
 
     // Client-side only configuration
     if (!isServer) {
-      // CRITICAL: Copy @imgly/background-removal dist files to public directory
+      // Copy @imgly/background-removal dist files to public directory
       config.plugins.push(
         new CopyPlugin({
           patterns: [
@@ -29,59 +29,31 @@ const nextConfig = {
         })
       )
 
-      // CRITICAL: Completely exclude ONNX Runtime and background removal from bundling
-      // This prevents Webpack from even trying to process these files
-      config.externals = config.externals || []
-      config.externals.push({
-        '@imgly/background-removal': '@imgly/background-removal',
-        'onnxruntime-web': 'onnxruntime-web',
+      // CRITICAL: Prevent parsing of WASM files
+      config.module.rules.push({
+        test: /\.wasm$/,
+        type: 'asset/resource',
+        generator: {
+          filename: 'static/wasm/[name][ext]',
+        },
       })
 
-      // CRITICAL: Ignore all files from these packages during module parsing
-      config.module = config.module || {}
-      config.module.noParse = config.module.noParse || []
-      config.module.noParse.push(
-        /node_modules\/@imgly\/background-removal/,
-        /node_modules\/onnxruntime-web/
-      )
+      // CRITICAL: Configure optimization to skip ONNX Runtime files entirely
+      config.optimization = config.optimization || {}
+      config.optimization.moduleIds = 'named'
 
-      // CRITICAL: Treat WASM and .mjs files as assets
-      config.module.rules.push(
-        {
-          test: /\.wasm$/,
-          type: 'asset/resource',
-        },
-        {
-          test: /\.mjs$/,
-          include: /node_modules\/(onnxruntime-web|@imgly\/background-removal)/,
-          type: 'asset/resource',
+      // Disable minimize for problematic files
+      if (config.optimization.minimizer) {
+        const TerserPlugin = config.optimization.minimizer.find(
+          (plugin) => plugin.constructor.name === 'TerserPlugin'
+        )
+
+        if (TerserPlugin) {
+          TerserPlugin.options = TerserPlugin.options || {}
+          TerserPlugin.options.terserOptions = TerserPlugin.options.terserOptions || {}
+          TerserPlugin.options.terserOptions.compress = TerserPlugin.options.terserOptions.compress || {}
+          TerserPlugin.options.exclude = /ort.*\.(mjs|wasm)$/
         }
-      )
-
-      // CRITICAL: Use IgnorePlugin to prevent Webpack from bundling these packages
-      config.plugins.push(
-        new webpack.IgnorePlugin({
-          resourceRegExp: /^@imgly\/background-removal$/,
-        }),
-        new webpack.IgnorePlugin({
-          resourceRegExp: /^onnxruntime-web$/,
-        })
-      )
-
-      // CRITICAL: Disable minimization for ONNX Runtime files
-      if (config.optimization && config.optimization.minimizer) {
-        config.optimization.minimizer = config.optimization.minimizer.map((minimizer) => {
-          if (minimizer.constructor.name === 'TerserPlugin') {
-            minimizer.options = minimizer.options || {}
-            minimizer.options.exclude = [
-              /node_modules[\\/]@imgly[\\/]background-removal/,
-              /node_modules[\\/]onnxruntime-web/,
-              /\.wasm$/,
-              /\.mjs$/,
-            ]
-          }
-          return minimizer
-        })
       }
     }
 
@@ -97,7 +69,7 @@ const nextConfig = {
     return config
   },
 
-  // CRITICAL: Prevent server-side bundling
+  // Prevent server-side bundling
   experimental: {
     serverComponentsExternalPackages: [
       '@imgly/background-removal',
