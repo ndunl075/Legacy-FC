@@ -34,6 +34,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# background removal resources (copied during build)
+# AI model resources (copied during build)
 /public/static/chunks/imgly
+/public/static/chunks/onnx
 
