@@ -3,6 +3,7 @@
 import { Upload, Loader2 } from 'lucide-react'
 import { PlayerData } from '../page'
 import { useState } from 'react'
+import { removeBackground } from '@imgly/background-removal'
 
 interface ControlPanelProps {
   playerData: PlayerData
@@ -50,7 +51,7 @@ const clubs = [
 ]
 
 export default function ControlPanel({ playerData, setPlayerData }: ControlPanelProps) {
-  const [removeBackground, setRemoveBackground] = useState(false) // Temporarily disabled due to build issues
+  const [removeBackgroundEnabled, setRemoveBackgroundEnabled] = useState(false) // Temporarily disabled due to build issues
   const [isProcessingImage, setIsProcessingImage] = useState(false)
   const [processingProgress, setProcessingProgress] = useState(0)
 
@@ -68,20 +69,23 @@ export default function ControlPanel({ playerData, setPlayerData }: ControlPanel
     setProcessingProgress(0)
 
     try {
-      if (removeBackground) {
-        // Dynamic import to avoid SSR issues with WASM
-        const { removeBackground: removeBg } = await import('@imgly/background-removal')
-
+      if (removeBackgroundEnabled) {
         // Configure publicPath to point to copied assets in public folder
+        const publicPath = `${typeof window !== 'undefined' ? window.location.protocol + '//' + window.location.host : ''}/static/chunks/imgly/`
+
         const config = {
-          publicPath: `${window.location.protocol}//${window.location.host}/static/chunks/imgly/`,
+          publicPath: publicPath,
+          fetchArgs: {
+            mode: 'no-cors' as RequestMode
+          },
+          debug: true, // helpful for checking console if path is wrong
           progress: (key: string, current: number, total: number) => {
             const progressPercent = Math.round((current / total) * 100)
             setProcessingProgress(progressPercent)
           },
         }
 
-        const imageBlob = await removeBg(file, config)
+        const imageBlob = await removeBackground(file, config)
 
         // Convert blob to data URL
         const reader = new FileReader()
@@ -212,9 +216,9 @@ export default function ControlPanel({ playerData, setPlayerData }: ControlPanel
                 <Loader2 className="w-8 h-8 text-legacy-blue animate-spin" />
                 <div className="text-center">
                   <p className="text-sm font-semibold text-gray-300 mb-2">
-                    {removeBackground ? 'Removing background...' : 'Processing image...'}
+                    {removeBackgroundEnabled ? 'Removing background...' : 'Processing image...'}
                   </p>
-                  {removeBackground && (
+                  {removeBackgroundEnabled && (
                     <>
                       <div className="w-48 h-1.5 bg-gray-700 rounded-full overflow-hidden mb-1">
                         <div
