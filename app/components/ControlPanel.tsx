@@ -72,13 +72,16 @@ export default function ControlPanel({ playerData, setPlayerData }: ControlPanel
         // Dynamic import to avoid SSR issues with WASM
         const { removeBackground: removeBg } = await import('@imgly/background-removal')
 
-        const imageBlob = await removeBg(file, {
-          progress: (key, current, total) => {
+        // Configure publicPath to point to copied assets in public folder
+        const config = {
+          publicPath: `${window.location.protocol}//${window.location.host}/static/chunks/imgly/`,
+          progress: (key: string, current: number, total: number) => {
             const progressPercent = Math.round((current / total) * 100)
             setProcessingProgress(progressPercent)
           },
-          publicPath: '/static/chunks/imgly/',
-        })
+        }
+
+        const imageBlob = await removeBg(file, config)
 
         // Convert blob to data URL
         const reader = new FileReader()
