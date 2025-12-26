@@ -7,7 +7,7 @@ const __dirname = path.dirname(__filename)
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, webpack }) => {
     // Enable WASM support
     config.experiments = {
       ...config.experiments,
@@ -18,7 +18,6 @@ const nextConfig = {
     // Client-side only configuration
     if (!isServer) {
       // CRITICAL: Copy @imgly/background-removal dist files to public directory
-      // This prevents Webpack from trying to bundle them
       config.plugins.push(
         new CopyPlugin({
           patterns: [
@@ -30,34 +29,64 @@ const nextConfig = {
         })
       )
 
-      // CRITICAL: Treat WASM files as assets (don't parse them)
-      // This prevents Terser from trying to minify them
-      config.module.rules.push({
-        test: /\.wasm$/,
-        type: 'asset/resource',
+      // CRITICAL: Completely exclude ONNX Runtime and background removal from bundling
+      // This prevents Webpack from even trying to process these files
+      config.externals = config.externals || []
+      config.externals.push({
+        '@imgly/background-removal': '@imgly/background-removal',
+        'onnxruntime-web': 'onnxruntime-web',
       })
 
-      // CRITICAL: Ignore ONNX Runtime .mjs files that contain import.meta
-      // Tell Webpack to treat them as external resources
-      config.module.rules.push({
-        test: /onnxruntime-web.*\.mjs$/,
-        type: 'asset/resource',
-        generator: {
-          filename: 'static/chunks/[name][ext]',
+      // CRITICAL: Ignore all files from these packages during module parsing
+      config.module = config.module || {}
+      config.module.noParse = config.module.noParse || []
+      config.module.noParse.push(
+        /node_modules\/@imgly\/background-removal/,
+        /node_modules\/onnxruntime-web/
+      )
+
+      // CRITICAL: Treat WASM and .mjs files as assets
+      config.module.rules.push(
+        {
+          test: /\.wasm$/,
+          type: 'asset/resource',
         },
-      })
+        {
+          test: /\.mjs$/,
+          include: /node_modules\/(onnxruntime-web|@imgly\/background-removal)/,
+          type: 'asset/resource',
+        }
+      )
 
-      // Exclude the entire @imgly/background-removal package from Terser minification
+      // CRITICAL: Use IgnorePlugin to prevent Webpack from bundling these packages
+      config.plugins.push(
+        new webpack.IgnorePlugin({
+          resourceRegExp: /^@imgly\/background-removal$/,
+        }),
+        new webpack.IgnorePlugin({
+          resourceRegExp: /^onnxruntime-web$/,
+        })
+      )
+
+      // CRITICAL: Disable minimization for ONNX Runtime files
       if (config.optimization && config.optimization.minimizer) {
-        config.optimization.minimizer.forEach((minimizer) => {
+        config.optimization.minimizer = config.optimization.minimizer.map((minimizer) => {
           if (minimizer.constructor.name === 'TerserPlugin') {
-            minimizer.options.exclude = /node_modules[\\/](@imgly[\\/]background-removal|onnxruntime-web)/
+            minimizer.options = minimizer.options || {}
+            minimizer.options.exclude = [
+              /node_modules[\\/]@imgly[\\/]background-removal/,
+              /node_modules[\\/]onnxruntime-web/,
+              /\.wasm$/,
+              /\.mjs$/,
+            ]
           }
+          return minimizer
         })
       }
     }
 
-    // Prevent Node.js modules from being bundled client-side
+    // Prevent Node.js modules from being bundled
+    config.resolve = config.resolve || {}
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
@@ -68,8 +97,7 @@ const nextConfig = {
     return config
   },
 
-  // CRITICAL: Prevent server-side bundling of packages that use WASM/ONNX
-  // This avoids import.meta errors during server-side rendering
+  // CRITICAL: Prevent server-side bundling
   experimental: {
     serverComponentsExternalPackages: [
       '@imgly/background-removal',
@@ -77,7 +105,7 @@ const nextConfig = {
     ],
   },
 
-  // CORS headers required for SharedArrayBuffer and WASM
+  // CORS headers for WASM
   async headers() {
     return [
       {
