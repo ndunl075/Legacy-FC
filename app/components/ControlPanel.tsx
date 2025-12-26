@@ -71,18 +71,17 @@ export default function ControlPanel({ playerData, setPlayerData }: ControlPanel
     try {
       if (removeBackgroundEnabled) {
         // Configure publicPath to point to copied assets in public folder
-        const publicPath = `${typeof window !== 'undefined' ? window.location.protocol + '//' + window.location.host : ''}/static/chunks/imgly/`
+        const publicPath = `${window.location.protocol}//${window.location.host}/static/chunks/imgly/`
 
         const config = {
           publicPath: publicPath,
-          fetchArgs: {
-            mode: 'no-cors' as RequestMode
-          },
-          debug: true, // helpful for checking console if path is wrong
+          fetchArgs: { mode: 'no-cors' as RequestMode },
+          debug: true,
           progress: (key: string, current: number, total: number) => {
+            console.log(`Downloading ${key}: ${current} of ${total}`)
             const progressPercent = Math.round((current / total) * 100)
             setProcessingProgress(progressPercent)
-          },
+          }
         }
 
         const imageBlob = await removeBackground(file, config)
@@ -280,3 +279,5 @@ export default function ControlPanel({ playerData, setPlayerData }: ControlPanel
     </div>
   )
 }
+
+
